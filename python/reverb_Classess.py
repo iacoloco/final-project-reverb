@@ -13,123 +13,100 @@ import numpy as np
 
 class DelayLine:
     
-    def __init__(self, D: int):
-        if D < 1:
-            raise ValueError("D need to be > then 1")
+    def __init__(self, max_delay_sec:int , delay_ms): #Arguments in __init__ are the things your class needs in order to be built
+        
+        self.Fs = 48000
+        #Time delay
+        self.delay_samples = int((delay_ms / 1000) * self.Fs)
+        self.size = int(max_delay_sec  * self.Fs)
+        # Allocate buffer
+        self.buffer = np.zeros(self.size, dtype=np.float32)
+        
+
+
+        # Write index
+        self.writeIndex = 0
+        self.readIndex=0
 
         
-        self.D = int(D)
-        self.buffer = np.zeros(self.D , dtype= np.float32)
-        self.idx = 0
-    
-        # Flexible API for comb/allpass:
-    def read(self) -> float:
-        return float(self.buffer[self.idx])
+    def process(self, x):
+        
+        #Clamp if delay user is > then buffer size
+        if self.delay_samples >= self.size:
+            self.delay_samples = self.size - 1
+        
+        self.readIndex = self.writeIndex - self.delay_samples
+        #or instead --->     self.readIndex = (self.writeIndex - self.delay_samples) % self.size and i dont need if self.readIndex < 0:
 
-    def write(self, x: float):
-        self.buffer[self.idx] = float(x)
-
-    #Move Pointer
-    def movePointer(self):
-        self.idx += 1
-        if self.idx >= self.D:
-           self.idx = 0
-    
-    
-    # Pure delay: y[n] = x[n-D]
-    def process_sample(self, x: float) ->float:
+        if self.readIndex < 0:
+            self.readIndex += self.size
         
-        #Read and output the bufferdelay
-        y = float(self.buffer[self.idx])
+        #Read sample delay
+        delayed = self.buffer[self.readIndex]
         
-        #Write the current input in to the buffer  
-        self.buffer[self.idx] =float(x)
+        #Write
+        self.buffer[self.writeIndex] = x
         
-        #Move
-        self.movePointer()
+        #Move the pointer
+        self.writeIndex += 1
+        if self.writeIndex >= self.size:
+            self.writeIndex = 0
             
-        return y
-    
-    def clear(self):
-        self.idx=0
-        self.buffer.fill(0.0)
-    
-
-
-    
-   
-class FeedbackComb:
-    # y[n] = x[n] + g * y[n-D]
-    def __init__(self, D: int, g: float):
-        self.g = float(g)
-        self.delay = DelayLine(D)
-
-    def process_sample(self, x: float) -> float:
-        yd = self.delay.read()                 # y[n-D]
-        y  = float(x) + self.g * yd            # y[n]
-        self.delay.write(y)                    # store y[n]
-        self.delay.movePointer()               # advance delay line
-        return y
-
-    def clear(self):
-        self.delay.clear()
         
-
-   
+        return delayed
     
-
-
+        
+        
+ #One Pole Filter
+ #y[n] = (1 - a) * x[n] + a * y[n-1]
+class OnePole:
+    
+    def __init__(self, a ):
+        
+        self.a = a
+        self.v_prev= 0.0
+        
+    def process(self, x):
+        if self.a > 1:
+            self.a = 1
+        if self.a < 0:
+            self.a = 0
+        
+        y = (1 - self.a) * x + self.a * self.v_prev
+        
+        self.v_prev= y
+        
+        
+        return y
+    
+#
 class LPcomb:
     
-    def __init__(self, D:int , g: float , damp: float ):
+    def __init___(self, max_delay_sec, delay_ms, a , g):
+        
+        self.delayLine = DelayLine(max_delay_sec, delay_ms)
+        self.OnePole = OnePole(a)
+        self.d = 0
+        self.g = g
+        self.feedback = 0.0
+        
+        
+    def process(self, x):
+        
+        d = self.delayLine.process(x + self.feedback)
+        
+        self.feedback = self.g * self.OnePole.process(d)
+        
+        return  d 
+
+    
+        
+        
+        
        
-        if not (0.0 <= g < 1.0):
-            raise ValueError("g must be in [0, 1)")
-
-        if not (0.0 <= damp < 1.0):
-            raise ValueError("damp must be in [0, 1)")
-                
-        self.D = int(D)
-        self.g = float(g)
-        self.damp = float(np.clip(damp, 0.0, 0.999999))
-        self.delay = DelayLine(D)
-        #One pole LPF state 
-        self.v = 0.0
-        
-    def process_sample(self, x:float) -> float:
-        
-        #Read Delay Buffer
-        yd = self.delay.read()
-        
-        #Compiute the one pole low pass
-        self.v = (1 - self.damp) * yd + self.damp * self.v
-        
-        y = float(x) + self.g * self.v
-        
-        #Write the output on the delay buffer
-        self.delay.write(y)
-        
-        #Move pointer
-        self.delay.movePointer()
-        
-        return y
-        
-D = 4
-dl = LPcomb(2, 0.5, 0.5)
-x = [1,0,0,0,0,0,0]
-y = [dl.process_sample(v) for v in x]
-print(y)
-   
         
         
 
-    
-    
-    
-    
-    
-    
-    
     
     
     
