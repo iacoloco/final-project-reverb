@@ -59,7 +59,10 @@ class DelayLine:
  #One Pole Filter 
 #------------------------------------------------------------------------------          
 
- #y[n] = (1 - a) * x[n] + a * y[n-1]  ----> a= 0.9 = ---> (1 - 0.9) ---> 0.1 * input...
+#y[n] = (1 - a) * x[n] + a * y[n-1]  ----> a= 0.9 = ---> (1 - 0.9) ---> 0.1 * input...
+#(1 − a) = how much new signal enters the loop
+#a = how much old signal stays in the loop
+
 class OnePole:
     
     def __init__(self, a ):
@@ -142,7 +145,9 @@ class Reverb:
     #Max 6 All Pass
     ALLPASS_DELAYS = [10, 12, 14, 16, 18, 20]
 
-    def __init__(self, max_delay_sec, a, g, gAll, numb_Combs, numb_AllPass,  room_Size:int):
+    def __init__(self, max_delay_sec,
+                 a, g, gAll, numb_Combs, numb_AllPass,
+                 room_Size:int, mix:float):
         
         # Select delay list based on room size
         if room_Size == 0:
@@ -158,7 +163,7 @@ class Reverb:
         delay_ms_list = delay_ms_list[:numb_Combs]
 
         # Store parameters
-        self.num_Combs = numb_Combs
+        self.numb_Combs = numb_Combs
         #List of Object of Combs
         self.combs = []
         #List of OBject of All Pass Filter
@@ -166,6 +171,7 @@ class Reverb:
         self.a = a
         self.g = g
         self.gAll = gAll
+        self.mix = mix
 
         # Create N comb filters
         for i in range(numb_Combs):
@@ -184,11 +190,17 @@ class Reverb:
         comb_sum = 0.0   
         for comb in self.combs:
             comb_sum += comb.process(x)
+            
+        #Normalize by number of combs
+        comb_sum /= self.numb_Combs
 
         # Run through allpass (Series)
-        y = comb_sum
+        yVerb = comb_sum
         for ap in self.allPass:
-            y = ap.process(y)
+            yVerb = ap.process(yVerb)
+            
+        y = (1 - self.mix) * x + self.mix * yVerb
+            
 
         return y
 

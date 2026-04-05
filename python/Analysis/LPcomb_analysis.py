@@ -35,11 +35,11 @@ x = np.zeros(N, dtype=np.float32)
 x[0] = 1.0
 
 # LPcomb(max_delay_sec, delay_ms, a, g)
-lp = LPcomb(1, 50, 0.1, 0.9)
-y_imp = np.zeros(N)
+lp = LPcomb(1, 50, 0.1, 0.5)
+y = np.zeros(N)
 
 for n in range(N):
-    y_imp[n] = lp.process(x[n])
+    y[n] = lp.process(x[n])
 
 t_ms = (np.arange(N) / Fs) * 1000
 
@@ -47,7 +47,7 @@ t_ms = (np.arange(N) / Fs) * 1000
 # Higher a → stronger low‑pass  ----> LPF(d[n])
 # --- Full impulse response ---
 plt.figure(figsize=(12,4))
-plt.plot(t_ms, y_imp)
+plt.plot(t_ms, y)
 plt.title("LPComb Impulse Response (delay = 50 ms, a = 0.1, g = 0.9)")
 plt.xlabel("Time (ms)")
 plt.ylabel("Amplitude")
@@ -60,7 +60,7 @@ plt.show()
 
 # --- Zoom: first 100 ms ---
 plt.figure(figsize=(12,4))
-plt.plot(t_ms, y_imp)
+plt.plot(t_ms, y)
 plt.title("Zoom: First 100 ms")
 plt.xlabel("Time (ms)")
 plt.ylabel("Amplitude")
@@ -75,7 +75,7 @@ plt.show()
 # 2) Spectrogram for LPComb with light damping (a = 0.1)
 # ---------------------------------------------------------
 
-x, sr = lr.load("IR.wav")
+x, sr = lr.load("IR48k.wav")
 x = x.astype(np.float32)
 x = x / np.max(np.abs(x))
 

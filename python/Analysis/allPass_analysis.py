@@ -69,7 +69,7 @@ plt.show()
 # ---------------------------------------------------------
 
 # Load audio
-x, sr = lr.load("IR.wav")
+x, sr = lr.load("IR48k.wav")
 x = x.astype(np.float32)
 x = x / np.max(np.abs(x))
 
