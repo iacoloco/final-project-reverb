@@ -21,7 +21,7 @@ import librosa as lr
 # ---------------------------------------------------------
 
 Fs = 48000
-N = 24000
+N = 48000
 
 x = np.zeros(N, dtype=np.float32)
 x[0] = 1.0
@@ -38,14 +38,14 @@ for n in range(N):
 t_ms = (np.arange(N) / Fs) * 1000
 
 
-# --- Plot full impulse response (0–100 ms) ---
+# --- Plot full impulse response  ---
 plt.figure(figsize=(12,4))
 plt.plot(t_ms, y_imp)
 plt.title("AllPass Impulse Response (delay = 50 ms, g = 0.7)")
 plt.xlabel("Time (ms)")
 plt.ylabel("Amplitude")
 plt.grid(True)
-plt.xlim(0, 450)
+plt.xlim(-10, 600)
 plt.ylim(-1.2, 1.2)
 plt.axvline(50, color='red', linestyle='--')
 plt.show()
@@ -69,7 +69,7 @@ plt.show()
 # ---------------------------------------------------------
 
 # Load audio
-x, sr = lr.load("IR48k.wav")
+x, sr = lr.load("IR.wav")
 x = x.astype(np.float32)
 x = x / np.max(np.abs(x))
 
@@ -145,3 +145,31 @@ plt.colorbar(label="Magnitude (dB)")
 plt.xlim(0, 0.2)
 plt.tight_layout()
 plt.show()
+
+
+
+
+# ---------------------------------------------------------
+# 4) Print test - verify allpass values
+# ---------------------------------------------------------
+Fs = 48000
+delay_ms = 50
+gAll = 0.7
+max_delay_sec = 1.0
+D = int((delay_ms / 1000) * Fs)  
+
+ap_test = AllPass(max_delay_sec, delay_ms, gAll)
+
+N_test = Fs
+impulse = np.zeros(N_test, dtype=np.float32)
+impulse[0] = 1.0
+
+ir = np.zeros(N_test, dtype=np.float32)
+for i in range(N_test):
+    ir[i] = ap_test.process(impulse[i])
+
+print(ir[0])
+print(ir[D])
+print(ir[D*2])
+
+

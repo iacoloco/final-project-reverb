@@ -22,7 +22,6 @@ import soundfile as sf
 class DelayLine:
     
     def __init__(self, max_delay_sec:int , delay_ms): #Arguments in __init__ are the things your class needs in order to be built
-        
         self.Fs = 48000
         #Time delay
         self.delay_samples = int((delay_ms / 1000) * self.Fs)
@@ -32,17 +31,16 @@ class DelayLine:
         
         # Write index
         self.writeIndex = 0
-        self.readIndex=0
         
     def process(self, x ):
         
-        self.readIndex = (self.writeIndex - self.delay_samples) #% self.size
+        readIndex = (self.writeIndex - self.delay_samples) #% self.size
         
-        if self.readIndex < 0:
-            self.readIndex += self.size
+        if readIndex < 0:
+            readIndex += self.size
 
         #Read sample delay
-        delayed = self.buffer[self.readIndex]
+        delayed = self.buffer[readIndex]
         
         #Write
         self.buffer[self.writeIndex] = x
@@ -55,6 +53,18 @@ class DelayLine:
         
         return delayed
     
+    def read(self):
+        readIndex = (self.writeIndex - self.delay_samples)
+        if readIndex < 0:
+            readIndex += self.size
+        return self.buffer[readIndex]
+
+    def write(self, x):
+        self.buffer[self.writeIndex] = x
+        self.writeIndex += 1
+        if self.writeIndex >= self.size:
+            self.writeIndex = 0
+    
 #------------------------------------------------------------------------------
  #One Pole Filter 
 #------------------------------------------------------------------------------          
@@ -65,23 +75,19 @@ class DelayLine:
 
 class OnePole:
     
-    def __init__(self, a ):
-        
+    def __init__(self, a):
+
+        if a > 1:
+            a = 1
+        if a < 0:
+            a = 0
         self.a = a
-        self.v_prev= 0.0
+        self.v_prev = 0.0
         
     def process(self, x):
-        if self.a > 1:
-            self.a = 1
-        if self.a < 0:
-            self.a = 0
-        
         y = (1 - self.a) * x + self.a * self.v_prev
-        
-        self.v_prev= y
-        
+        self.v_prev = y
         return y
-
 #------------------------------------------------------------------------------
 #   LP COMB CLASS  
 #------------------------------------------------------------------------------
@@ -90,23 +96,18 @@ class OnePole:
 # Lower a → weaker low‑pass    ----> LPF(d[n]) = (1 - a) * d[n]  (a = 0.1 → 0.9 * d[n])
 
 class LPcomb:
-                                                           # g----->Feedback Strength (how long)
-    def __init__(self, max_delay_sec, delay_ms, a , g):   # a---> dump (Bright vs warm) ---> 
-        
-        self.delayLine = DelayLine(max_delay_sec, delay_ms)
+    def __init__(self, max_delay_sec, delay_ms, a, g):
+        self.delayLine = DelayLine(max_delay_sec, delay_ms)  
         self.onePole = OnePole(a)
-        self.d = 0
         self.g = g
         self.feedback = 0.0
-        
-        
+       
+
     def process(self, x):
-        
         d = self.delayLine.process(x + self.feedback)
-        
-        self.feedback = self.g * self.onePole.process(d)
-        
-        return  d 
+        filtered = self.onePole.process(d)     
+        self.feedback = self.g * filtered       
+        return filtered
     
 #------------------------------------------------------------------------------
 #   ALL PASS CLASS  
@@ -117,39 +118,31 @@ class AllPass:
     def __init__(self, max_delay_sec, delay_ms, gAll):
         self.gAll = gAll
         self.delayLine = DelayLine(max_delay_sec, delay_ms)
-        self.feedback = 0.0   # stores y[n - D]
         
+
     def process(self, x):
-        # Feed input + feedback into delay line
-        d = self.delayLine.process(x + self.gAll * self.feedback)
-        
-        # AllPass output
-        y = d - self.gAll * x
-        
-        # Store for next sample 
-        self.feedback = y
-        
+        d = self.delayLine.read()         # d = v[n-D]
+        v = x + self.gAll * d             # v[n] = x[n] + g·v[n-D]
+        self.delayLine.write(v)           # store v[n] for D samples from now
+        y = d - self.gAll * v             # y[n] = v[n-D] - g·v[n]
         return y
-
-
 #------------------------------------------------------------------------------
 #   REVERBERATOR 
 #------------------------------------------------------------------------------  
 class Reverb:
     
-    #Max 8 Comb
-    SMALL_ROOM_DELAYS = [20, 24, 28, 32, 36, 40, 44, 48]
-    MEDIUM_ROOM_DELAYS = [40, 46, 52, 58, 64, 70, 76, 82]
-    LARGE_ROOM_DELAYS = [60, 68, 76, 84, 92, 100, 108, 116]
+    #Max 8 Comb -
+    SMALL_ROOM_DELAYS  = [31, 37, 43, 53, 59, 67, 73, 83]
+    MEDIUM_ROOM_DELAYS = [59, 67, 79, 89, 97, 107, 113, 127]
+    LARGE_ROOM_DELAYS  = [97, 107, 113, 127, 137, 149, 157, 167]
     
-    #Max 6 All Pass
-    ALLPASS_DELAYS = [10, 12, 14, 16, 18, 20]
+    #Max 6 All Pass - prime numbers
+    ALLPASS_DELAYS = [11, 13, 17, 19, 23, 29]
 
     def __init__(self, max_delay_sec,
                  a, g, gAll, numb_Combs, numb_AllPass,
-                 room_Size:int, mix:float):
+                 room_Size, mix, predelay_ms):
         
-        # Select delay list based on room size
         if room_Size == 0:
             delay_ms_list = self.SMALL_ROOM_DELAYS
         elif room_Size == 1:
@@ -159,50 +152,36 @@ class Reverb:
         else:
             raise ValueError("Room Size must be 0 (small), 1 (medium), or 2 (large)")
 
-        # Slice list based on number of combs
         delay_ms_list = delay_ms_list[:numb_Combs]
 
-        # Store parameters
         self.numb_Combs = numb_Combs
-        #List of Object of Combs
         self.combs = []
-        #List of OBject of All Pass Filter
         self.allPass = []
-        self.a = a
-        self.g = g
-        self.gAll = gAll
         self.mix = mix
+        self.preDelay = DelayLine(max_delay_sec, predelay_ms)
 
-        # Create N comb filters
         for i in range(numb_Combs):
             comb = LPcomb(max_delay_sec, delay_ms_list[i], a, g)
             self.combs.append(comb)
 
-        # One allpass
         for i in range(numb_AllPass):
             ap = AllPass(max_delay_sec, self.ALLPASS_DELAYS[i], gAll)
             self.allPass.append(ap)
         
-
     def process(self, x):
+        
+        x_predelay = self.preDelay.process(x)
 
-        # Run combs in (Parallel)
         comb_sum = 0.0   
         for comb in self.combs:
-            comb_sum += comb.process(x)
+            comb_sum += comb.process(x_predelay)
             
-        #Normalize by number of combs
         comb_sum /= self.numb_Combs
 
-        # Run through allpass (Series)
         yVerb = comb_sum
         for ap in self.allPass:
             yVerb = ap.process(yVerb)
             
         y = (1 - self.mix) * x + self.mix * yVerb
-            
 
         return y
-
-        
-        

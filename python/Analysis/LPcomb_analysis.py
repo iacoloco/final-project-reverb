@@ -35,7 +35,7 @@ x = np.zeros(N, dtype=np.float32)
 x[0] = 1.0
 
 # LPcomb(max_delay_sec, delay_ms, a, g)
-lp = LPcomb(1, 50, 0.1, 0.5)
+lp = LPcomb(1, 50, 0.1, 0.8)
 y = np.zeros(N)
 
 for n in range(N):
@@ -48,7 +48,7 @@ t_ms = (np.arange(N) / Fs) * 1000
 # --- Full impulse response ---
 plt.figure(figsize=(12,4))
 plt.plot(t_ms, y)
-plt.title("LPComb Impulse Response (delay = 50 ms, a = 0.1, g = 0.9)")
+plt.title("LPComb Impulse Response (delay = 50 ms, a = 0.1, g = 0.8)")
 plt.xlabel("Time (ms)")
 plt.ylabel("Amplitude")
 plt.grid(True)
