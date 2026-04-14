@@ -262,7 +262,7 @@ rt60_small  = compute_RT60(ir_small,  Fs)
 rt60_medium = compute_RT60(ir_medium, Fs)
 rt60_large  = compute_RT60(ir_large,  Fs)
 
-print("RT60 Small  Room: ", round(rt60_small), "s")
+print("RT60 Small  Room: ", round(rt60_small, 3), "s")
 print("RT60 Medium Room: ", round(rt60_medium, 3), "s")
 print("RT60 Large  Room: ", round(rt60_large,  3), "s")
 
