@@ -16,7 +16,9 @@ class DelayLine:
     def __init__(self, delay_ms,  sample_rate):
         
         self.Fs = sample_rate
+        
         self.delay_samples = int((self.Fs / 1000) * delay_ms)
+        
         self.size = self.Fs *2
         self.buffer = np.zeros(self.size)
         self.write_idx = 0
@@ -48,17 +50,21 @@ class OnePole:
         self.b = 1-self.a
         self.y_prev = 0
  
-        #dsp--> y(n) a * x(n) + b * y(n-1)
-    def process(self, x):
-        
-        #y = (1 - self.a) * x + self.y_prev * self.a
-        y = self.b*x + self.a * self.y_prev 
+        #dsp--> y (n) = b*x(n) - a*y(n- 1)
+    def process(self, x):      
+        y = (1 - self.a) * x + self.y_prev * self.a
         self.y_prev = y
         
         return y
     
+    
+    
+    
+    
+
         
-#In LPcomb, what came out of the delay line is what you feed into OnePole
+#In LPcomb, what came out of the delay line
+#is what you feed into OnePole
 class LP_Comb:
     
      def __init__(self, delay_ms, g, a, sample_rate):
@@ -71,9 +77,9 @@ class LP_Comb:
      def process(self, x):
         
         combined = x + self.feedback
-        d = self.delay.process(combined)
-        y = d
-        self.feedback = self.OnePole.process(d)
+        buffer = self.delay.process(combined)
+        y = buffer
+        self.feedback = self.OnePole.process(buffer)
         self.feedback = self.feedback * self.g
         return y
         
@@ -81,7 +87,6 @@ class LP_Comb:
 
 class allPass:
 
-    
     def __init__(self, g_apf, delay_ms, sample_rate):
         
         self.Fs = sample_rate
@@ -94,11 +99,11 @@ class allPass:
     def process(self, x):
         
         w = x + self.g_apf * self.buffer[self.idx]
-        
+        "read"
         y = -self.g_apf * w + self.buffer[self.idx]
-        
+        "write"
         self.buffer[self.idx] = w 
-        
+        "move"
         self.idx +=1
         if self.idx >= len(self.buffer) :
             self.idx = 0
@@ -110,36 +115,30 @@ class allPass:
         
 class Reverb:
     
-    def __init__(self, room_size , dump ,wet ,sample_rate):
+    def __init__(self, room_size , damp ,wet ,sample_rate):
         
         self.Fs= sample_rate
         self.g = room_size * 0.28 + 0.7
         self.wet = wet
-        self.a= dump * 0.4
+        self.a= damp * 0.55
         g_apf=0.5
         delays_combs =  [25.31, 26.94, 28.96, 30.75, 32.24, 33.81, 35.31, 36.67]
         delay_Apf = [12.61, 10.00, 7.73, 5.10] 
-        
         self.combs = []
         self.All_pass = []
         
-       
         for i in range(8): 
             #     def __init__(self, delay_ms, g, a, sample_rate):
             comb = LP_Comb(delays_combs[i], self.g, self.a ,self.Fs)
             self.combs.append(comb)
-            
             
         for i in range(4):
             apf = allPass(g_apf, delay_Apf[i] , self.Fs)
             self.All_pass.append(apf)
     
     
-    
     def process(self, x):
         # Step 1: run x through all combs, sum output
-
-        
         sum_comb = 0
         for comb in self.combs:
             sum_comb += comb.process(x)
@@ -154,9 +153,10 @@ class Reverb:
         
         apf4 = self.All_pass[3].process(apf3)
         
-        
         # Step 3: mix wet and dry
+        
         y = self.wet * apf4 + (1 - self.wet) * x
+
          
         return y
         
@@ -164,8 +164,26 @@ class Reverb:
         
   
 
-    
+class TwoPole:
+
+    def __init__(self, a):
+
+        self.a = a
+        self.b = 1-self.a
+        self.y_prev = 0
+        self.g1 =0.1
+        self.g2 = 1 - self.g1
+ 
+        #dsp--> y (n) = b*x(n) - a*y(n- 1).----> a is negative (-a)
+    def process(self, x):
         
+        y1 = (1 - self.a) * x + self.y_prev * self.a
+        y2 = (1 - self.a) * y1 + self.a* self.y_prev 
+        y = y1 * self.g1 + y2 * self.g2
+        self.y_prev = y
+        
+        return y
+    
         
 
     
